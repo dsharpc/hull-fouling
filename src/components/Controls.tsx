@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { VESSEL_TYPES, VESSEL_CATEGORIES, VesselType } from '../engine/VesselTypes';
+import { SimulationState } from '../engine/Simulation';
 
 const SIM_SPEEDS = [0.25, 0.5, 1, 1.5, 2, 2.5, 3];
 const MIN_SPEED_KNOTS = 4;
@@ -16,6 +17,7 @@ interface ControlsProps {
   onSimSpeedChange: (mult: number) => void;
   onToggleRun: () => void;
   onReset: () => void;
+  state: SimulationState; // Passed down to determine current vessel data for hull drawing
 }
 
 export default function Controls({
@@ -28,6 +30,7 @@ export default function Controls({
   onSimSpeedChange,
   onToggleRun,
   onReset,
+  state, // Receive state to pass to custom vessel hull drawing
 }: ControlsProps) {
   const [showMs, setShowMs] = useState(false);
 
@@ -36,7 +39,7 @@ export default function Controls({
   const handleSpeedRelease = (raw: number) => {
     // Snap to nearest defined point on release
     const snapped = SPEED_SNAP_POINTS.reduce((prev, curr) =>
-      Math.abs(curr - raw) < Math.abs(prev - raw) ? curr : prev,
+      Math.abs(curr - raw) < Math.abs(prev - curr) ? curr : prev,
     );
     onSpeedChange(snapped);
   };
@@ -53,7 +56,7 @@ export default function Controls({
               : 'bg-green-500 hover:bg-green-600'
           }`}
         >
-          {isRunning ? '⏸ PAUSE' : '▶ START'}
+          {isRunning ? '❚❚ PAUSE' : '▶ START'}
         </button>
         <button
           onClick={onReset}
@@ -68,9 +71,6 @@ export default function Controls({
         <label className="text-xs text-slate-400 uppercase tracking-wide block mb-1">
           Vessel Type
         </label>
-        {VESSEL_CATEGORIES.map(cat => (
-          <optgroup key={cat} label={cat} />
-        ))}
         <select
           value={vessel.id}
           onChange={e => {
@@ -110,6 +110,7 @@ export default function Controls({
           </button>
         </div>
         <div className="flex items-center gap-2">
+          {/* For range input, use a controlled value linked to state */}
           <input
             type="range"
             min={MIN_SPEED_KNOTS}
