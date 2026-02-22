@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { VESSEL_TYPES, VESSEL_CATEGORIES, VesselType } from '../engine/VesselTypes';
-import { SimulationState } from '../engine/Simulation';
 
 const SIM_SPEEDS = [0.25, 0.5, 1, 1.5, 2, 2.5, 3];
 const MIN_SPEED_KNOTS = 4;
