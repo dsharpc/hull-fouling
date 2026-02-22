@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { SimulationState } from '../engine/Simulation';
 
 interface ShipCanvasProps {
@@ -52,7 +52,7 @@ const ShipCanvas: React.FC<ShipCanvasProps> = ({ state }) => {
         // The heavier the fouling, the more green/brown "noise" we draw on the hull area.
         ctx.clip(); // Constrain drawing to the ship shape
 
-        const intensity = Math.min(state.roughness / 500, 1); // Normalize roughness for visual intensity
+        // const intensity = Math.min(state.roughness / 500, 1); // Normalize roughness for visual intensity
         
         // Slime layer (Green tint)
         if (state.roughness > 150) {

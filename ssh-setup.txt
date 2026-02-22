@@ -1,0 +1,7 @@
+Create branch gh-pages from main and push dist to it. Steps:
+1) npm run build
+2) git checkout -b gh-pages
+3) git add -f dist
+4) git commit -m "Publish to gh-pages"
+5) git push origin gh-pages --set-upstream
+6) In GitHub, enable Pages: source: gh-pages branch

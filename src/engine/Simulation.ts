@@ -10,7 +10,7 @@ export interface SimulationState {
 export class Simulation {
     public state: SimulationState;
     private baseFuelConsumption: number; // tonnes per day
-    private baseDrag: number; // arbitrary units or Newtons
+    // private baseDrag: number; // arbitrary units or Newtons
     
     // Linear fouling rate: microns per day increase
     // Real world: 0.5 - 5 microns/day depending on activity/location
@@ -18,7 +18,7 @@ export class Simulation {
 
     constructor() {
         this.baseFuelConsumption = 50; // default 50 tonnes/day for a Panamax-ish vessel
-        this.baseDrag = 1000; 
+        // this.baseDrag = 1000; 
         
         this.state = {
             day: 0,

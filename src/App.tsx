@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Simulation, SimulationState } from './engine/Simulation';
 import ShipCanvas from './components/ShipCanvas';
 import Dashboard from './components/Dashboard';
@@ -8,7 +8,7 @@ const sim = new Simulation();
 function App() {
   const [gameState, setGameState] = useState<SimulationState>(sim.state);
   const [isRunning, setIsRunning] = useState(false);
-  const requestRef = useRef<number>();
+  const requestRef = useRef<number>(0);
 
   const loop = () => {
     if (isRunning) {

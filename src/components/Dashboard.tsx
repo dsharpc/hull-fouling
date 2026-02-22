@@ -1,4 +1,3 @@
-import React from 'react';
 import { SimulationState } from '../engine/Simulation';
 
 interface DashboardProps {
