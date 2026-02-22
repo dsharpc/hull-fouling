@@ -1,57 +1,120 @@
 import { SimulationState } from '../engine/Simulation';
 
 interface DashboardProps {
-    state: SimulationState;
+  state: SimulationState;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ state }) => {
-    return (
-        <div className="bg-slate-800/90 backdrop-blur border border-slate-600 p-6 rounded-lg shadow-xl text-slate-200">
-            <h2 className="text-lg font-bold mb-4 text-cyan-400 border-b border-slate-700 pb-2">Vessel Metrics</h2>
-            
-            <div className="space-y-4">
-                <div className="flex justify-between items-center">
-                    <span className="text-sm font-medium text-slate-400">Time Elapsed</span>
-                    <span className="text-xl font-mono font-bold text-white">{state.day.toFixed(0)} <span className="text-xs text-slate-500">DAYS</span></span>
-                </div>
+function Stat({
+  label,
+  value,
+  unit,
+  color = 'text-white',
+}: {
+  label: string;
+  value: string;
+  unit: string;
+  color?: string;
+}) {
+  return (
+    <div className="p-3 bg-slate-900/50 rounded border border-slate-700">
+      <div className="text-xs text-slate-400 mb-1">{label}</div>
+      <div className={`text-2xl font-bold font-mono ${color}`}>
+        {value}
+        <span className="text-xs text-slate-500 ml-1">{unit}</span>
+      </div>
+    </div>
+  );
+}
 
-                <div className="flex justify-between items-center">
-                    <span className="text-sm font-medium text-slate-400">Avg. Roughness (AHR)</span>
-                    <span className={`text-xl font-mono font-bold ${state.roughness > 300 ? 'text-red-400' : 'text-green-400'}`}>
-                        {state.roughness.toFixed(1)} <span className="text-xs text-slate-500">µm</span>
-                    </span>
-                </div>
+export default function Dashboard({ state }: DashboardProps) {
+  const roughnessPct = Math.min((state.roughness / 1500) * 100, 100);
+  const roughnessColor =
+    state.roughness > 600
+      ? 'text-red-400'
+      : state.roughness > 300
+      ? 'text-amber-400'
+      : 'text-green-400';
 
-                <div className="w-full bg-slate-700 h-2 rounded mt-1 overflow-hidden">
-                    <div 
-                        className={`h-full transition-all duration-300 ${state.roughness > 500 ? 'bg-red-500' : 'bg-green-500'}`} 
-                        style={{ width: `${Math.min((state.roughness / 1000) * 100, 100)}%` }}
-                    />
-                </div>
+  const penaltyColor = (pct: number) =>
+    pct > 20 ? 'text-red-400' : pct > 10 ? 'text-amber-400' : 'text-orange-300';
 
-                <hr className="border-slate-700 my-2" />
+  return (
+    <div className="bg-slate-800/90 backdrop-blur border border-slate-600 p-5 rounded-lg shadow-xl text-slate-200 w-72 space-y-4">
+      <h2 className="text-sm font-bold text-cyan-400 uppercase tracking-wide border-b border-slate-700 pb-2">
+        Vessel Metrics
+      </h2>
 
-                <div className="grid grid-cols-2 gap-4">
-                    <div className="p-3 bg-slate-900/50 rounded border border-slate-700">
-                        <div className="text-xs text-slate-400 mb-1">Fuel Penalty</div>
-                        <div className="text-2xl font-bold text-orange-400">+{state.fuelPenalty.toFixed(1)}%</div>
-                    </div>
-                    <div className="p-3 bg-slate-900/50 rounded border border-slate-700">
-                         <div className="text-xs text-slate-400 mb-1">Total Drag Increase</div>
-                         <div className="text-2xl font-bold text-orange-400">+{state.dragPenalty.toFixed(1)}%</div>
-                    </div>
-                </div>
+      {/* Time */}
+      <div className="flex justify-between items-baseline">
+        <span className="text-xs text-slate-400">Time Elapsed</span>
+        <span className="text-xl font-mono font-bold">
+          {state.day < 365
+            ? `${state.day.toFixed(0)} days`
+            : `${(state.day / 365).toFixed(1)} yrs`}
+        </span>
+      </div>
 
-                <div className="mt-4 pt-4 border-t border-slate-700">
-                    <div className="text-xs text-slate-400 text-center uppercase tracking-wide mb-2">Environmental Impact</div>
-                    <div className="text-center">
-                        <span className="text-3xl font-bold text-white">{state.emissions.toFixed(0)}</span>
-                        <span className="text-xs ml-2 text-slate-400">TONNES CO2 (cumulative)</span>
-                    </div>
-                </div>
-            </div>
+      {/* Roughness bar */}
+      <div>
+        <div className="flex justify-between items-baseline mb-1">
+          <span className="text-xs text-slate-400">Avg Hull Roughness (AHR)</span>
+          <span className={`font-mono font-bold ${roughnessColor}`}>
+            {state.roughness.toFixed(0)} <span className="text-xs text-slate-500">µm</span>
+          </span>
         </div>
-    );
-}
+        <div className="w-full bg-slate-700 h-2 rounded overflow-hidden">
+          <div
+            className={`h-full transition-all duration-300 ${
+              state.roughness > 600 ? 'bg-red-500' : state.roughness > 300 ? 'bg-amber-500' : 'bg-green-500'
+            }`}
+            style={{ width: `${roughnessPct}%` }}
+          />
+        </div>
+        <div className="flex justify-between text-xs text-slate-600 mt-0.5">
+          <span>New ({state.config.vessel.baseRoughness} µm)</span>
+          <span>Heavily fouled (1500 µm)</span>
+        </div>
+      </div>
 
-export default Dashboard;
+      {/* Penalties */}
+      <div className="grid grid-cols-2 gap-2">
+        <Stat
+          label="Drag Increase"
+          value={`+${state.dragPenalty.toFixed(1)}`}
+          unit="%"
+          color={penaltyColor(state.dragPenalty)}
+        />
+        <Stat
+          label="Fuel Penalty"
+          value={`+${state.fuelPenalty.toFixed(1)}`}
+          unit="%"
+          color={penaltyColor(state.fuelPenalty)}
+        />
+        <Stat
+          label="Daily Fuel"
+          value={state.dailyFuelTonnes.toFixed(1)}
+          unit="t/day"
+        />
+        <Stat
+          label="Coating Health"
+          value={state.coatingHealth.toFixed(0)}
+          unit="%"
+          color={state.coatingHealth < 30 ? 'text-red-400' : 'text-green-400'}
+        />
+      </div>
+
+      {/* Emissions */}
+      <div className="pt-2 border-t border-slate-700 text-center">
+        <div className="text-xs text-slate-400 uppercase tracking-wide mb-1">
+          Cumulative CO₂ Emissions
+        </div>
+        <span className="text-3xl font-bold font-mono">
+          {state.emissions > 1000
+            ? `${(state.emissions / 1000).toFixed(1)}k`
+            : state.emissions.toFixed(0)}
+        </span>
+        <span className="text-xs ml-1 text-slate-400">tonnes CO₂</span>
+      </div>
+    </div>
+  );
+}
