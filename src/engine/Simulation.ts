@@ -36,29 +36,34 @@ function computePenalties(
   roughness: number,
   vessel: VesselType,
   speedKnots: number,
-): { dragPenalty: number; fuelPenalty: number } {
-  const L = vessel.hullLength;
+): { dragPenalty: number; fuelPenalty: number; cleanFuelTonnes: number } {
   const ahr0 = vessel.baseRoughness; // clean-hull reference roughness
-
-  // Townsin simplified delta friction coefficient (×100 gives %)
   const deltaAHR = Math.max(0, roughness - ahr0);
-  const townsinDelta =
-    0.044 *
-    (Math.pow((ahr0 + deltaAHR) / (L * 1e6), 1 / 3) -
-      Math.pow(ahr0 / (L * 1e6), 1 / 3)) *
-    100;
 
-  // Speed factor: penalties scale with (v / v_ref)^3
-  const speedFactor = Math.pow(speedKnots / vessel.referenceSpeed, SPEED_EXPONENT);
+  // Empirical power penalty model:
+  // roughly 1% penalty per 10-20 microns, diminishing returns?
+  // Using a power law: Penalty % = 0.5 * (increase_microns)^0.67
+  // e.g. +100um -> ~11%, +10um -> ~2.3%
+  // This is a robust "videogame visualization" approximation of ITTC/Townsin power penalties.
+  const roughnessPenaltyPct = deltaAHR > 0 
+    ? 0.5 * Math.pow(deltaAHR, 0.67) 
+    : 0;
 
-  const dragPenalty = townsinDelta * speedFactor;
+  // Base fuel consumption scales with speed cubed (approx)
+  // fuel = base * (speed / ref)^3
+  const speedRatio = speedKnots / vessel.referenceSpeed;
+  const cleanFuelTonnes = vessel.baseFuelConsumption * Math.pow(speedRatio, SPEED_EXPONENT);
 
-  // Fuel penalty slightly lower than drag penalty (propulsive efficiency losses)
-  const fuelPenalty = dragPenalty * 0.9;
+  // Drag penalty % is comparable to power/fuel penalty %
+  const dragPenalty = roughnessPenaltyPct;
+  
+  // Fuel penalty % (due to fouling)
+  const fuelPenalty = roughnessPenaltyPct;
 
   return {
     dragPenalty: Math.max(0, dragPenalty),
     fuelPenalty: Math.max(0, fuelPenalty),
+    cleanFuelTonnes
   };
 }
 
@@ -76,17 +81,18 @@ export class Simulation {
   }
 
   private buildInitialState(config: SimulationConfig): SimulationState {
-    const { dragPenalty, fuelPenalty } = computePenalties(
+    const { dragPenalty, fuelPenalty, cleanFuelTonnes } = computePenalties(
       config.vessel.baseRoughness,
       config.vessel,
       config.speedKnots,
     );
+    const dailyFuel = cleanFuelTonnes * (1 + fuelPenalty / 100);
     return {
       day: 0,
       roughness: config.vessel.baseRoughness,
       dragPenalty,
       fuelPenalty,
-      dailyFuelTonnes: config.vessel.baseFuelConsumption,
+      dailyFuelTonnes: dailyFuel,
       emissions: 0,
       coatingHealth: 100,
       config,
@@ -96,13 +102,12 @@ export class Simulation {
   updateConfig(newConfig: Partial<SimulationConfig>) {
     const config = { ...this.state.config, ...newConfig };
     // Recompute penalties but preserve accumulated state
-    const { dragPenalty, fuelPenalty } = computePenalties(
+    const { dragPenalty, fuelPenalty, cleanFuelTonnes } = computePenalties(
       this.state.roughness,
       config.vessel,
       config.speedKnots,
     );
-    const dailyFuelTonnes =
-      config.vessel.baseFuelConsumption * (1 + fuelPenalty / 100);
+    const dailyFuelTonnes = cleanFuelTonnes * (1 + fuelPenalty / 100);
     this.state = {
       ...this.state,
       config,
@@ -132,15 +137,14 @@ export class Simulation {
     const newCoatingHealth = Math.max(0, coatingHealth - 0.05 * simDays);
 
     // Recompute penalties
-    const { dragPenalty, fuelPenalty } = computePenalties(
+    const { dragPenalty, fuelPenalty, cleanFuelTonnes } = computePenalties(
       newRoughness,
       vessel,
       speedKnots,
     );
 
     // Daily fuel and emissions
-    const dailyFuelTonnes =
-      vessel.baseFuelConsumption * (1 + fuelPenalty / 100);
+    const dailyFuelTonnes = cleanFuelTonnes * (1 + fuelPenalty / 100);
     const newEmissions =
       this.state.emissions + dailyFuelTonnes * CO2_FACTOR * simDays;
 
