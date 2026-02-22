@@ -13,6 +13,7 @@ export default function App() {
   const [vessel, setVessel] = useState<VesselType>(DEFAULT_VESSEL);
   const [speedKnots, setSpeedKnots] = useState(DEFAULT_VESSEL.referenceSpeed);
   const [simSpeed, setSimSpeed] = useState(1);
+  const [fuelPrice, setFuelPrice] = useState(500);
 
   const lastTimeRef = useRef<number | null>(null);
   const rafRef = useRef<number>(0);
@@ -61,6 +62,12 @@ export default function App() {
     sim.updateConfig({ simSpeed: mult });
   };
 
+  const handleFuelPriceChange = (price: number) => {
+    setFuelPrice(price);
+    sim.updateConfig({ fuelPricePerTonne: price });
+    setGameState({ ...sim.state });
+  };
+
   const handleReset = () => {
     sim.reset();
     setGameState({ ...sim.state });
@@ -96,6 +103,8 @@ export default function App() {
             onVesselChange={handleVesselChange}
             onSpeedChange={handleSpeedChange}
             onSimSpeedChange={handleSimSpeedChange}
+            fuelPrice={fuelPrice}
+            onFuelPriceChange={handleFuelPriceChange}
             onToggleRun={() => setIsRunning(r => !r)}
             onReset={handleReset}
           />

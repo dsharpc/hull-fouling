@@ -14,6 +14,8 @@ interface ControlsProps {
   onVesselChange: (v: VesselType) => void;
   onSpeedChange: (knots: number) => void;
   onSimSpeedChange: (mult: number) => void;
+  fuelPrice: number;
+  onFuelPriceChange: (price: number) => void;
   onToggleRun: () => void;
   onReset: () => void;
 }
@@ -26,6 +28,8 @@ export default function Controls({
   onVesselChange,
   onSpeedChange,
   onSimSpeedChange,
+  fuelPrice,
+  onFuelPriceChange,
   onToggleRun,
   onReset,
 }: ControlsProps) {
@@ -153,6 +157,22 @@ export default function Controls({
               {s}×
             </button>
           ))}
+        </div>
+      </div>
+
+      {/* Fuel Price */}
+      <div>
+        <label className="text-xs text-slate-400 uppercase tracking-wide block mb-1">
+          Fuel Price (USD/t)
+        </label>
+        <div className="flex items-center gap-2">
+            <input 
+                type="number" 
+                value={fuelPrice}
+                onChange={(e) => onFuelPriceChange(Math.max(0, Number(e.target.value)))}
+                className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1.5 text-sm text-white"
+                step={10}
+            />
         </div>
       </div>
     </div>
