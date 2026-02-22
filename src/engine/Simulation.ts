@@ -4,6 +4,7 @@ export interface SimulationConfig {
   vessel: VesselType;
   speedKnots: number;       // actual vessel speed in knots
   simSpeed: number;         // simulation time multiplier (0.25, 0.5, 1, 1.5, 2, 2.5, 3)
+  fuelPricePerTonne: number; // USD per tonne of fuel
 }
 
 export interface SimulationState {
@@ -17,55 +18,48 @@ export interface SimulationState {
   emissionsPenalty: number; // cumulative CO2 from fouling penalty
   coatingHealth: number;    // 0–100%
   config: SimulationConfig;
+  // Fuel cost tracking
+  fuelCostClean: number;    // cumulative cost of clean-hull fuel (USD)
+  fuelCostPenalty: number;  // cumulative cost of fouling-penalty fuel (USD)
+  fuelCostTotal: number;    // cumulative total fuel cost (USD)
 }
 
 // HFO CO2 emission factor (tonnes CO2 per tonne fuel)
 const CO2_FACTOR = 3.114;
 
+// Default fuel price (USD per tonne of HFO)
+const DEFAULT_FUEL_PRICE = 500;
+
 // Speed exponent for fuel/drag penalty scaling (cube law approximation)
 const SPEED_EXPONENT = 3;
 
 /**
- * Compute the drag / fuel penalty from hull roughness using a simplified
- * form of the Townsin (1984) formula.
+ * Compute the drag / fuel penalty from hull roughness.
  *
- * Delta_Cf ≈ 0.044 * [ (AHR/L)^(1/3) - (AHR_0/L)^(1/3) ]
- * Fuel penalty ≈ Delta_Cf * 100 * speedFactor
+ * Empirical power-law model:
+ *   Penalty % = 0.5 * (deltaAHR)^0.67
  *
- * AHR in microns, L in metres.
+ * Base fuel scales with (speed / refSpeed)^3.
  */
 function computePenalties(
   roughness: number,
   vessel: VesselType,
   speedKnots: number,
 ): { dragPenalty: number; fuelPenalty: number; cleanFuelTonnes: number } {
-  const ahr0 = vessel.baseRoughness; // clean-hull reference roughness
+  const ahr0 = vessel.baseRoughness;
   const deltaAHR = Math.max(0, roughness - ahr0);
 
-  // Empirical power penalty model:
-  // roughly 1% penalty per 10-20 microns, diminishing returns?
-  // Using a power law: Penalty % = 0.5 * (increase_microns)^0.67
-  // e.g. +100um -> ~11%, +10um -> ~2.3%
-  // This is a robust "videogame visualization" approximation of ITTC/Townsin power penalties.
-  const roughnessPenaltyPct = deltaAHR > 0 
-    ? 0.5 * Math.pow(deltaAHR, 0.67) 
+  const roughnessPenaltyPct = deltaAHR > 0
+    ? 0.5 * Math.pow(deltaAHR, 0.67)
     : 0;
 
-  // Base fuel consumption scales with speed cubed (approx)
-  // fuel = base * (speed / ref)^3
   const speedRatio = speedKnots / vessel.referenceSpeed;
   const cleanFuelTonnes = vessel.baseFuelConsumption * Math.pow(speedRatio, SPEED_EXPONENT);
 
-  // Drag penalty % is comparable to power/fuel penalty %
-  const dragPenalty = roughnessPenaltyPct;
-  
-  // Fuel penalty % (due to fouling)
-  const fuelPenalty = roughnessPenaltyPct;
-
   return {
-    dragPenalty: Math.max(0, dragPenalty),
-    fuelPenalty: Math.max(0, fuelPenalty),
-    cleanFuelTonnes
+    dragPenalty: Math.max(0, roughnessPenaltyPct),
+    fuelPenalty: Math.max(0, roughnessPenaltyPct),
+    cleanFuelTonnes,
   };
 }
 
@@ -77,6 +71,7 @@ export class Simulation {
       vessel: DEFAULT_VESSEL,
       speedKnots: DEFAULT_VESSEL.referenceSpeed,
       simSpeed: 1,
+      fuelPricePerTonne: DEFAULT_FUEL_PRICE,
     };
     const mergedConfig = { ...defaultConfig, ...config };
     this.state = this.buildInitialState(mergedConfig);
@@ -100,12 +95,14 @@ export class Simulation {
       emissionsPenalty: 0,
       coatingHealth: 100,
       config,
+      fuelCostClean: 0,
+      fuelCostPenalty: 0,
+      fuelCostTotal: 0,
     };
   }
 
   updateConfig(newConfig: Partial<SimulationConfig>) {
     const config = { ...this.state.config, ...newConfig };
-    // Recompute penalties but preserve accumulated state
     const { dragPenalty, fuelPenalty, cleanFuelTonnes } = computePenalties(
       this.state.roughness,
       config.vessel,
@@ -128,10 +125,10 @@ export class Simulation {
   /** Advance simulation by one animation frame. deltaTime is in real seconds. */
   tick(deltaSeconds: number) {
     const { config, roughness, coatingHealth } = this.state;
-    const { vessel, speedKnots, simSpeed } = config;
+    const { vessel, speedKnots, simSpeed, fuelPricePerTonne } = config;
 
     // Sim days elapsed this frame
-    const simDays = (deltaSeconds / 86400) * simSpeed * 86400; // each real second = simSpeed days
+    const simDays = (deltaSeconds / 86400) * simSpeed * 86400;
 
     // Roughness grows linearly (faster at low coating health)
     const coatingFactor = 1 + (1 - coatingHealth / 100) * 0.5;
@@ -147,16 +144,17 @@ export class Simulation {
       speedKnots,
     );
 
-    // Daily fuel and emissions
+    // Daily fuel
     const dailyFuelTonnes = cleanFuelTonnes * (1 + fuelPenalty / 100);
-    
+    const penaltyFuelTonnes = dailyFuelTonnes - cleanFuelTonnes;
+
     // Emissions breakdown
     const stepCleanEmissions = cleanFuelTonnes * CO2_FACTOR * simDays;
-    const stepPenaltyEmissions = (dailyFuelTonnes - cleanFuelTonnes) * CO2_FACTOR * simDays;
-    
-    const newEmissions = this.state.emissions + (stepCleanEmissions + stepPenaltyEmissions);
-    const newEmissionsClean = this.state.emissionsClean + stepCleanEmissions;
-    const newEmissionsPenalty = this.state.emissionsPenalty + stepPenaltyEmissions;
+    const stepPenaltyEmissions = penaltyFuelTonnes * CO2_FACTOR * simDays;
+
+    // Fuel cost breakdown
+    const stepCleanCost = cleanFuelTonnes * fuelPricePerTonne * simDays;
+    const stepPenaltyCost = penaltyFuelTonnes * fuelPricePerTonne * simDays;
 
     this.state = {
       ...this.state,
@@ -166,9 +164,12 @@ export class Simulation {
       dragPenalty,
       fuelPenalty,
       dailyFuelTonnes,
-      emissions: newEmissions,
-      emissionsClean: newEmissionsClean,
-      emissionsPenalty: newEmissionsPenalty,
+      emissions: this.state.emissions + stepCleanEmissions + stepPenaltyEmissions,
+      emissionsClean: this.state.emissionsClean + stepCleanEmissions,
+      emissionsPenalty: this.state.emissionsPenalty + stepPenaltyEmissions,
+      fuelCostClean: this.state.fuelCostClean + stepCleanCost,
+      fuelCostPenalty: this.state.fuelCostPenalty + stepPenaltyCost,
+      fuelCostTotal: this.state.fuelCostTotal + stepCleanCost + stepPenaltyCost,
     };
   }
 }
