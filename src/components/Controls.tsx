@@ -16,7 +16,6 @@ interface ControlsProps {
   onSimSpeedChange: (mult: number) => void;
   onToggleRun: () => void;
   onReset: () => void;
-  state: SimulationState; // Passed down to determine current vessel data for hull drawing
 }
 
 export default function Controls({
@@ -29,7 +28,6 @@ export default function Controls({
   onSimSpeedChange,
   onToggleRun,
   onReset,
-  state, // Receive state to pass to custom vessel hull drawing
 }: ControlsProps) {
   const [showMs, setShowMs] = useState(false);
 
