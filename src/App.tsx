@@ -1,31 +1,65 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Simulation, SimulationState } from './engine/Simulation';
+import { DEFAULT_VESSEL, VesselType } from './engine/VesselTypes';
 import ShipCanvas from './components/ShipCanvas';
 import Dashboard from './components/Dashboard';
+import Controls from './components/Controls';
 
 const sim = new Simulation();
 
-function App() {
-  const [gameState, setGameState] = useState<SimulationState>(sim.state);
+export default function App() {
+  const [gameState, setGameState] = useState<SimulationState>({ ...sim.state });
   const [isRunning, setIsRunning] = useState(false);
-  const requestRef = useRef<number>(0);
+  const [vessel, setVessel] = useState<VesselType>(DEFAULT_VESSEL);
+  const [speedKnots, setSpeedKnots] = useState(DEFAULT_VESSEL.referenceSpeed);
+  const [simSpeed, setSimSpeed] = useState(1);
 
-  const loop = () => {
-    if (isRunning) {
-      sim.tick(1); // 1 day per frame for fast forwarding
+  const lastTimeRef = useRef<number | null>(null);
+  const rafRef = useRef<number>(0);
+
+  const loop = useCallback(
+    (timestamp: number) => {
+      if (lastTimeRef.current === null) {
+        lastTimeRef.current = timestamp;
+      }
+      const deltaSeconds = Math.min((timestamp - lastTimeRef.current) / 1000, 0.1);
+      lastTimeRef.current = timestamp;
+
+      sim.tick(deltaSeconds * simSpeed);
       setGameState({ ...sim.state });
-      requestRef.current = requestAnimationFrame(loop);
-    }
-  };
+
+      rafRef.current = requestAnimationFrame(loop);
+    },
+    [simSpeed],
+  );
 
   useEffect(() => {
     if (isRunning) {
-      requestRef.current = requestAnimationFrame(loop);
+      lastTimeRef.current = null;
+      rafRef.current = requestAnimationFrame(loop);
     } else {
-      cancelAnimationFrame(requestRef.current!);
+      cancelAnimationFrame(rafRef.current);
     }
-    return () => cancelAnimationFrame(requestRef.current!);
-  }, [isRunning]);
+    return () => cancelAnimationFrame(rafRef.current);
+  }, [isRunning, loop]);
+
+  const handleVesselChange = (v: VesselType) => {
+    setVessel(v);
+    setSpeedKnots(v.referenceSpeed);
+    sim.updateConfig({ vessel: v, speedKnots: v.referenceSpeed });
+    setGameState({ ...sim.state });
+  };
+
+  const handleSpeedChange = (knots: number) => {
+    setSpeedKnots(knots);
+    sim.updateConfig({ speedKnots: knots });
+    setGameState({ ...sim.state });
+  };
+
+  const handleSimSpeedChange = (mult: number) => {
+    setSimSpeed(mult);
+    sim.updateConfig({ simSpeed: mult });
+  };
 
   const handleReset = () => {
     sim.reset();
@@ -35,33 +69,43 @@ function App() {
 
   return (
     <div className="flex flex-col h-screen w-full bg-slate-900 text-white overflow-hidden">
-      <header className="p-4 bg-slate-800 border-b border-slate-700 flex justify-between items-center z-10">
-        <h1 className="text-xl font-bold text-cyan-400">Hull Fouling Simulator v0.1</h1>
-        <div className="flex gap-4">
-          <button 
-            onClick={() => setIsRunning(!isRunning)}
-            className={`px-4 py-2 rounded font-bold transition-colors ${isRunning ? 'bg-red-500 hover:bg-red-600' : 'bg-green-500 hover:bg-green-600'}`}
-          >
-            {isRunning ? 'PAUSE' : 'START SIMULATION'}
-          </button>
-          <button 
-            onClick={handleReset}
-            className="px-4 py-2 bg-slate-600 hover:bg-slate-500 rounded transition-colors"
-          >
-            RESET
-          </button>
+      {/* Header */}
+      <header className="px-4 py-2 bg-slate-800 border-b border-slate-700 flex items-center justify-between z-10 shrink-0">
+        <div>
+          <h1 className="text-lg font-bold text-cyan-400">Hull Fouling Simulator</h1>
+          <p className="text-xs text-slate-500">
+            Visualise biofouling impact on drag, fuel, and emissions
+          </p>
         </div>
+        <span className="text-xs text-slate-500 hidden md:block">
+          v0.2 · dsharpc/hull-fouling
+        </span>
       </header>
-      
-      <main className="flex-1 relative">
+
+      {/* Main canvas area */}
+      <main className="flex-1 relative overflow-hidden">
         <ShipCanvas state={gameState} />
-        
-        <div className="absolute top-4 left-4 z-20 w-80">
-            <Dashboard state={gameState} />
+
+        {/* Left: Controls */}
+        <div className="absolute top-4 left-4 z-20">
+          <Controls
+            vessel={vessel}
+            speedKnots={speedKnots}
+            simSpeed={simSpeed}
+            isRunning={isRunning}
+            onVesselChange={handleVesselChange}
+            onSpeedChange={handleSpeedChange}
+            onSimSpeedChange={handleSimSpeedChange}
+            onToggleRun={() => setIsRunning(r => !r)}
+            onReset={handleReset}
+          />
+        </div>
+
+        {/* Right: Dashboard */}
+        <div className="absolute top-4 right-4 z-20">
+          <Dashboard state={gameState} />
         </div>
       </main>
     </div>
   );
 }
-
-export default App;
