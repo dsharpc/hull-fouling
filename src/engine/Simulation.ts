@@ -13,6 +13,8 @@ export interface SimulationState {
   fuelPenalty: number;      // % increase in fuel consumption vs clean hull
   dailyFuelTonnes: number;  // actual fuel burned today (tonnes)
   emissions: number;        // cumulative CO2 emissions (tonnes)
+  emissionsClean: number;   // cumulative CO2 from theoretical clean hull
+  emissionsPenalty: number; // cumulative CO2 from fouling penalty
   coatingHealth: number;    // 0–100%
   config: SimulationConfig;
 }
@@ -94,6 +96,8 @@ export class Simulation {
       fuelPenalty,
       dailyFuelTonnes: dailyFuel,
       emissions: 0,
+      emissionsClean: 0,
+      emissionsPenalty: 0,
       coatingHealth: 100,
       config,
     };
@@ -145,8 +149,14 @@ export class Simulation {
 
     // Daily fuel and emissions
     const dailyFuelTonnes = cleanFuelTonnes * (1 + fuelPenalty / 100);
-    const newEmissions =
-      this.state.emissions + dailyFuelTonnes * CO2_FACTOR * simDays;
+    
+    // Emissions breakdown
+    const stepCleanEmissions = cleanFuelTonnes * CO2_FACTOR * simDays;
+    const stepPenaltyEmissions = (dailyFuelTonnes - cleanFuelTonnes) * CO2_FACTOR * simDays;
+    
+    const newEmissions = this.state.emissions + (stepCleanEmissions + stepPenaltyEmissions);
+    const newEmissionsClean = this.state.emissionsClean + stepCleanEmissions;
+    const newEmissionsPenalty = this.state.emissionsPenalty + stepPenaltyEmissions;
 
     this.state = {
       ...this.state,
@@ -157,6 +167,8 @@ export class Simulation {
       fuelPenalty,
       dailyFuelTonnes,
       emissions: newEmissions,
+      emissionsClean: newEmissionsClean,
+      emissionsPenalty: newEmissionsPenalty,
     };
   }
 }

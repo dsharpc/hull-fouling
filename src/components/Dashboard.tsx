@@ -104,16 +104,50 @@ export default function Dashboard({ state }: DashboardProps) {
       </div>
 
       {/* Emissions */}
-      <div className="pt-2 border-t border-slate-700 text-center">
-        <div className="text-xs text-slate-400 uppercase tracking-wide mb-1">
-          Cumulative CO₂ Emissions
+      <div className="pt-2 border-t border-slate-700">
+        <div className="text-xs text-slate-400 uppercase tracking-wide mb-2 text-center">
+          Cumulative CO₂ Impact
         </div>
-        <span className="text-3xl font-bold font-mono">
-          {state.emissions > 1000
-            ? `${(state.emissions / 1000).toFixed(1)}k`
-            : state.emissions.toFixed(0)}
-        </span>
-        <span className="text-xs ml-1 text-slate-400">tonnes CO₂</span>
+        
+        <div className="text-center mb-3">
+          <span className="text-3xl font-bold font-mono text-white">
+            {state.emissions > 1000
+              ? `${(state.emissions / 1000).toFixed(2)}k`
+              : state.emissions.toFixed(0)}
+          </span>
+          <span className="text-xs ml-1 text-slate-400">tonnes Total</span>
+        </div>
+
+        {/* Breakdown Bar */}
+        <div className="w-full h-3 bg-slate-700 rounded-full overflow-hidden flex mb-2">
+          <div 
+            className="h-full bg-blue-500 transition-all duration-300"
+            style={{ width: `${(state.emissionsClean / (state.emissions || 1)) * 100}%` }}
+          />
+          <div 
+            className="h-full bg-red-500 transition-all duration-300"
+            style={{ width: `${(state.emissionsPenalty / (state.emissions || 1)) * 100}%` }}
+          />
+        </div>
+
+        <div className="flex justify-between text-xs transition-colors">
+          <div className="text-left">
+            <div className="text-blue-400 font-bold">Standard</div>
+            <div className="text-slate-400">
+              {state.emissionsClean > 1000 
+                ? `${(state.emissionsClean/1000).toFixed(1)}k` 
+                : state.emissionsClean.toFixed(0)} t
+            </div>
+          </div>
+          <div className="text-right">
+            <div className="text-red-400 font-bold">Fouling Penalty</div>
+            <div className="text-slate-400">
+              {state.emissionsPenalty > 1000 
+                ? `${(state.emissionsPenalty/1000).toFixed(1)}k` 
+                : state.emissionsPenalty.toFixed(0)} t
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
